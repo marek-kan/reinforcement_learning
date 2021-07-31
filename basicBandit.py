@@ -7,6 +7,7 @@ Created on Fri Jul 30 19:47:39 2021
 
 import numpy as np
 import scipy.stats as stat
+import matplotlib.pyplot as plt
 
 class MultiArmedBandit():
     """
@@ -32,25 +33,28 @@ class MultiArmedBandit():
         self.Q = np.array([0]*n_dist, dtype=np.float32)
         self.N = np.array([0]*n_dist)
         self.A = []
-        self.final_reward = 0
+        self.final_rewards = []
         for i in range(n_dist):
             self.A.append(i)
             m = np.random.uniform(-10, 10)
             std = np.random.uniform(0, 10)
             # loc == mean, scale == std
-            self.dists.append(stat.uniform(loc=m, scale=std))
+            self.dists.append(stat.norm(loc=m, scale=std))
             
-    def call(self):
+    def call_sample_avg(self, stationary=True):
         """
-        Iterates n_steps times for estimating action values. If variable
-        random less or equal to e -> random action else greedy action with random tie
-        breaking. 
+        Iterates n_steps times for estimating action values through sample averages.
+        If variable random less or equal to e -> random action else greedy action 
+        with random tie breaking. 
         
         random: random nuber used to determine exploration/exploitation
         a : action at step i
         r : reward at step i
         """
         for i in range(n_steps):
+            if not stationary:
+                self.update_reward_dists()
+                
             random = np.random.uniform(0, 1)
             if random <= self.e:
                 a = np.random.choice(self.A)
@@ -60,17 +64,32 @@ class MultiArmedBandit():
             r = self.dists[a].rvs()
             self.N[a] = self.N[a] + 1
             self.Q[a] = self.Q[a] + 1/self.N[a] * (r - self.Q[a])
-            self.final_reward += r
+            self.final_rewards.append(r)
+    
+    def update_reward_dists(self, m=0, std=1):
+        for i, d in enumerate(self.dists):
+            params = d.kwds
+            random_change = stat.norm.rvs(loc=m, scale=std)
+            self.dists[i] = stat.norm(
+                loc=params['loc']+random_change,
+                scale=params['scale']
+            )
 
 if __name__ == '__main__':
-    n_steps = 100
+    np.random.seed(0)
+    n_steps = 1000
     n_dist = 5
     e = 0.1
     
     bandit = MultiArmedBandit(n_steps, e, n_dist)
-    bandit.call()
+    bandit.call(False)
     
     print('Distributions args:', [d.kwds for d in bandit.dists])
     print('\nAction values:', bandit.Q)
     print('\nNumber of action choices:', bandit.N)
-    print('\nFinal reward:', bandit.final_reward)
+    
+    plt.plot(range(n_steps), np.cumsum(bandit.final_rewards))
+    plt.title('Cum sum of rewards')
+    plt.xlabel('step')
+    plt.ylabel('Sum')
+    plt.show()

@@ -66,6 +66,35 @@ class MultiArmedBandit():
             self.Q[a] = self.Q[a] + 1/self.N[a] * (r - self.Q[a])
             self.final_rewards.append(r)
     
+    def call_weighted_avg(self, stationary=True, step_size = 0.1, decay_step_size=False):
+        """
+        Iterates n_steps times for estimating action values through weighted averages.
+        If variable random less or equal to e -> random action else greedy action 
+        with random tie breaking. 
+        
+        random: random nuber used to determine exploration/exploitation
+        a : action at step i
+        r : reward at step i
+        """
+        o = 0
+        for i in range(n_steps):
+            if not stationary:
+                self.update_reward_dists(m=np.random.uniform(-3, 3))
+            if decay_step_size:
+                step_size = step_size * (1 / (1 + 0.001 * i))
+                
+            random = np.random.uniform(0, 1)
+            if random <= self.e:
+                a = np.random.choice(self.A)
+            else:
+                # random choice among greedy actions
+                a = np.random.choice(np.flatnonzero(self.Q == self.Q.max()))
+            r = self.dists[a].rvs()
+            self.N[a] = self.N[a] + 1
+            # self.Q[a] = self.Q[a] + 1/self.N[a] * (r - self.Q[a])
+            self.Q[a] = self.Q[a] + step_size * (r - self.Q[a])
+            self.final_rewards.append(r)
+    
     def update_reward_dists(self, m=0, std=1):
         for i, d in enumerate(self.dists):
             params = d.kwds
@@ -76,20 +105,32 @@ class MultiArmedBandit():
             )
 
 if __name__ == '__main__':
-    np.random.seed(0)
+    np.random.seed(123)
     n_steps = 1000
     n_dist = 5
     e = 0.1
     
     bandit = MultiArmedBandit(n_steps, e, n_dist)
-    bandit.call(False)
+    bandit.call_sample_avg(False)
     
     print('Distributions args:', [d.kwds for d in bandit.dists])
     print('\nAction values:', bandit.Q)
     print('\nNumber of action choices:', bandit.N)
     
     plt.plot(range(n_steps), np.cumsum(bandit.final_rewards))
-    plt.title('Cum sum of rewards')
+    plt.title(f'Cum sum of rewards - sample avg, {np.sum(bandit.final_rewards)}')
     plt.xlabel('step')
     plt.ylabel('Sum')
     plt.show()
+    plt.close()
+    
+    bandit = MultiArmedBandit(n_steps, e, n_dist)
+    bandit.call_weighted_avg(False, 0.5, decay_step_size=True)
+    print('\nAction values:', bandit.Q)
+    print('\nNumber of action choices:', bandit.N)
+    plt.plot(range(n_steps), np.cumsum(bandit.final_rewards))
+    plt.title(f'Cum sum of rewards - weighted avg, {np.sum(bandit.final_rewards)}')
+    plt.xlabel('step')
+    plt.ylabel('Sum')
+    plt.show()
+    plt.close()

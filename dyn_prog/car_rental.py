@@ -97,6 +97,7 @@ def P_calculate(joint_prob):
         State - action - reward dict.
 
     """
+    
     for state_value_A in range(21):  # car left at the start of the day at A
         print("State " + str(state_value_A))
         for state_value_B in range(21):  # car left at the start of the day at B
@@ -111,7 +112,7 @@ def P_calculate(joint_prob):
                             for returned_car_A in range(21):  # total cars returned at the end of the day at A
                                 for returned_car_B in range(21):  # total cars returned at the end of the day at B
                                     rented_cars_a = min(customer_A, state_value_A-action) # lets say 20 customers and 1-(-5)
-                                    rented_cars_b = min(customer_B, state_value_B-action)
+                                    rented_cars_b = min(customer_B, state_value_B+action)
                                     
                                     value_A_Changed = min(20, state_value_A - rented_cars_a + returned_car_A - action)
                                     value_B_Changed = min(20, state_value_B - rented_cars_b + returned_car_B + action)
@@ -124,13 +125,10 @@ def P_calculate(joint_prob):
                                         (value_A_Changed, value_B_Changed),0) # init with 0
                                     temp[((value_A_Changed, value_B_Changed),reward)]+= joint_prob[
                                         (customer_A, returned_car_A, customer_B, returned_car_B)]
-                    P[(state_value_A, state_value_B, action)] = temp
-                    """
-                    !!! UPDATE P AND THEN SAVE !!!
-                    """
-    with open('P.pkl', 'wb') as f:
-        pickle.dump(P, f, protocol=-1)
-    return P
+                    P.update({(state_value_A, state_value_B, action):temp})
+                with open(f'P_{state_value_A}_{state_value_B}.pkl', 'wb') as f:
+                    pickle.dump(P, f, protocol=-1)
+    return 
 
 def policy_eval(V, policy, P, 
                 theta=0.01, gamma=0.9):
@@ -161,7 +159,8 @@ def policy_eval(V, policy, P,
         delta = 0
         for i in range(21):
             for j in range(21):
-                a = policy([i, j])
+                a = policy[(i, j)]
+                P = pickle.load(open(f'P_{i}_{j}.pkl', 'rb'))
                 p = P[(i, j, a)]
                 old_value = V[(i, j)]
                 
@@ -203,7 +202,8 @@ def policy_improvement(V, P, policy={}, gamma=0.9):
             q = [0] * 11
             state_a, state_b = k
             for a in range(-5, 6):
-                p = P[state_a, state_b, a]
+                P = pickle.load(open(f'P_{state_a}_{state_b}.pkl', 'rb'))
+                p = P[(state_a, state_b, a)]
                 idx = a + 5
                 if (a <= state_a and -a <= state_b and a + state_b <= 20 and -a + state_a <= 20):
                     for states, reward, prob in p.items():
@@ -218,8 +218,9 @@ def policy_improvement(V, P, policy={}, gamma=0.9):
     return
 
 def train():
-    joint_prob = init_prob()
-    P = P_calculate(joint_prob)
+    # joint_prob = init_prob()
+    # P = P_calculate(joint_prob)
+    # P = pickle.load(open('P.pkl', 'rb'))
     # init value functions and policy
     V, policy = {}, {}
     for i in range(21):
@@ -229,15 +230,16 @@ def train():
             
     for i in range(5):
         print('Training step:', i+1)
-        V = policy_eval(V, policy, P)
-        policy = policy_improvement(V, P, policy)
+        V = policy_eval(V, policy)
+        policy = policy_improvement(V, policy)
         
     return V, policy
     
     
     
-V, policy = train()
-    
+# V, policy = train()
+joint_prob = init_prob()
+P_calculate(joint_prob)
     
     
     
